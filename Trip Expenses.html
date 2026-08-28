@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trip Ledger">
+<title>Trip Ledger</title>
+<style>
+  :root{
+    --ink:#101820;
+    --ink-soft:#48545e;
+    --paper:#f6f4ef;
+    --card:#ffffff;
+    --line:#e2ded4;
+    --accent:#1f6f5c;
+    --accent-soft:#e4efec;
+    --danger:#b3422f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mono{font-family:"SF Mono", "Menlo", ui-monospace, monospace;}
+  header{
+    padding:22px 20px 16px;
+    background:var(--ink);
+    color:#fff;
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  header .eyebrow{
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:#9fb3ad;
+    margin-bottom:4px;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    font-weight:650;
+    letter-spacing:-0.01em;
+  }
+  header .back{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    color:#cfe3dd;
+    font-size:14px;
+    margin-bottom:10px;
+    background:none;
+    border:none;
+    padding:0;
+    cursor:pointer;
+  }
+  main{padding:16px 16px 90px;}
+  .empty{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--ink-soft);
+  }
+  .empty .glyph{font-size:34px; margin-bottom:10px;}
+  .empty p{margin:6px 0; font-size:14px; line-height:1.5;}
+  .trip-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    cursor:pointer;
+  }
+  .trip-card:active{background:#f1efe8;}
+  .trip-card .name{font-weight:650; font-size:16px;}
+  .trip-card .meta{font-size:12.5px; color:var(--ink-soft); margin-top:3px;}
+  .status-pill{
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    padding:3px 9px;
+    border-radius:100px;
+    font-weight:650;
+  }
+  .status-active{background:var(--accent-soft); color:var(--accent);}
+  .status-sent{background:#eee; color:#888;}
+  .fab{
+    position:fixed;
+    bottom:22px;
+    left:16px;
+    right:16px;
+    max-width:520px;
+    margin:0 auto;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:100px;
+    padding:16px;
+    font-size:15px;
+    font-weight:650;
+    box-shadow:0 8px 20px rgba(0,0,0,.18);
+    cursor:pointer;
+  }
+  .fab:active{opacity:.85;}
+  .fab.secondary{background:var(--ink);}
+  .sheet-backdrop{
+    position:fixed; inset:0;
+    background:rgba(16,24,32,.45);
+    z-index:20;
+    display:flex;
+    align-items:flex-end;
+  }
+  .sheet{
+    background:var(--card);
+    width:100%;
+    border-radius:20px 20px 0 0;
+    padding:20px 20px 28px;
+    max-height:85vh;
+    overflow-y:auto;
+  }
+  .sheet h2{margin:0 0 14px; font-size:18px;}
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:650;
+    color:var(--ink-soft);
+    margin:14px 0 6px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  input[type=text], input[type=number], input[type=date]{
+    width:100%;
+    padding:12px 13px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-size:15px;
+    background:#fbfaf7;
+    color:var(--ink);
+  }
+  input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .photo-input{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .photo-btn{
+    flex:1;
+    border:1.5px dashed var(--line);
+    border-radius:12px;
+    padding:14px;
+    text-align:center;
+    font-size:13.5px;
+    color:var(--ink-soft);
+    background:#fbfaf7;
+    cursor:pointer;
+  }
+  .thumb-preview{
+    width:64px; height:64px;
+    border-radius:10px;
+    object-fit:cover;
+    border:1px solid var(--line);
+  }
+  .btn-row{margin-top:22px; display:flex; gap:10px;}
+  .btn{
+    flex:1;
+    padding:14px;
+    border-radius:12px;
+    border:none;
+    font-size:15px;
+    font-weight:650;
+    cursor:pointer;
+  }
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-ghost{background:#eee; color:var(--ink);}
+  .btn:disabled{opacity:.45;}
+  .entry{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:11px;
+    margin-bottom:9px;
+  }
+  .entry img{
+    width:52px; height:52px;
+    border-radius:8px;
+    object-fit:cover;
+    flex-shrink:0;
+  }
+  .entry .info{flex:1; min-width:0;}
+  .entry .merchant{font-weight:600; font-size:14.5px;}
+  .entry .sub{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .entry .amount{font-weight:650; font-size:15px;}
+  .entry .del{
+    background:none; border:none; color:var(--ink-soft);
+    font-size:18px; padding:4px 6px; cursor:pointer;
+  }
+  .total-bar{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background:var(--card); border:1px solid var(--line);
+    border-radius:12px; padding:14px 16px; margin-bottom:14px;
+  }
+  .total-bar .label{font-size:12.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+  .total-bar .value{font-size:22px; font-weight:700;}
+  .section-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-soft); margin:18px 0 8px; font-weight:650;
+  }
+  .export-box{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:14px; margin-bottom:12px;
+  }
+  .export-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .export-table th, .export-table td{
+    border-bottom:1px solid var(--line); padding:6px 4px; text-align:left;
+  }
+  .toast{
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:100px;
+    font-size:13.5px; z-index:50; opacity:0; transition:opacity .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  .loading{text-align:center; padding:40px; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+const state = {
+  view: 'loading', // loading | list | trip | addEntry | newTrip | report
+  trips: [],
+  currentTripId: null,
+  entries: [],
+  pendingPhoto: null, // {base64, name}
+};
+
+const $ = sel => document.querySelector(sel);
+const app = $('#app');
+
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function money(n){
+  const v = parseFloat(n);
+  if (isNaN(v)) return '$0.00';
+  return '$' + v.toFixed(2);
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+// ---------- storage (standalone version — uses the browser's own localStorage,
+// so this works with no dependency on Claude or any outside chat/service) ----------
+async function loadTrips(){
+  try{
+    const raw = localStorage.getItem('trips-index');
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveTrips(trips){
+  try{
+    localStorage.setItem('trips-index', JSON.stringify(trips));
+  }catch(e){ toast('Could not save — storage may be full'); }
+}
+async function loadEntries(tripId){
+  try{
+    const raw = localStorage.getItem('trip-entries:' + tripId);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveEntries(tripId, entries){
+  try{
+    localStorage.setItem('trip-entries:' + tripId, JSON.stringify(entries));
+  }catch(e){ toast('Could not save — storage may be full (try smaller/fewer photos)'); }
+}
+
+// ---------- image compression ----------
+function compressImage(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 900;
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim){ h = h*(maxDim/w); w = maxDim; }
+        else if (h > maxDim){ w = w*(maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.55));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---------- rendering ----------
+async function render(){
+  if (state.view === 'loading'){
+    app.innerHTML = `<div class="loading">Loading your trips…</div>`;
+    return;
+  }
+  if (state.view === 'list') return renderList();
+  if (state.view === 'newTrip') return renderNewTrip();
+  if (state.view === 'trip') return renderTrip();
+  if (state.view === 'addEntry') return renderAddEntry();
+  if (state.view === 'report') return renderReport();
+}
+
+function renderList(){
+  const active = state.trips.filter(t=>t.status==='active');
+  const sent = state.trips.filter(t=>t.status==='sent');
+  let html = `
+    <header>
+      <div class="eyebrow">Trip Ledger</div>
+      <h1>Your trips</h1>
+    </header>
+    <main>`;
+  if (state.trips.length === 0){
+    html += `
+      <div class="empty">
+        <div class="glyph">🧾</div>
+        <p><strong>No trips yet.</strong></p>
+        <p>Start one, then add bill photos to it as you go.</p>
+      </div>`;
+  } else {
+    if (active.length){
+      html += `<div class="section-label">Active</div>`;
+      active.forEach(t => html += tripCard(t));
+    }
+    if (sent.length){
+      html += `<div class="section-label">Sent</div>`;
+      sent.forEach(t => html += tripCard(t));
+    }
+  }
+  html += `</main>
+    <button class="fab" onclick="goNewTrip()">+ New trip</button>`;
+  app.innerHTML = html;
+}
+
+function tripCard(t){
+  const pill = t.status === 'active'
+    ? `<span class="status-pill status-active">Active</span>`
+    : `<span class="status-pill status-sent">Sent</span>`;
+  return `
+    <div class="trip-card" onclick="openTrip('${t.id}')">
+      <div>
+        <div class="name">${escapeHtml(t.name)}</div>
+        <div class="meta">${t.entryCount || 0} bill${t.entryCount===1?'':'s'} · ${money(t.total||0)}</div>
+      </div>
+      ${pill}
+    </div>`;
+}
+
+function renderNewTrip(){
+  app.innerHTML = `
+    <header>
+      <button class="back" onclick="goList()">← Trips</button>
+      <h1>New trip</h1>
+    </header>
+    <main>
+      <label>Trip name</label>
+      <input type="text" id="newTripName" placeholder="e.g. Chicago — Client Visit" autofocus>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goList()">Cancel</button>
+        <button class="btn btn-primary" onclick="createTrip()">Create trip</button>
+      </div>
+    </main>`;
+  setTimeout(()=>$('#newTripName')?.focus(), 50);
+}
+
+async function createTrip(){
+  const name = $('#newTripName').value.trim();
+  if (!name){ toast('Give the trip a name'); return; }
+  const id = 't_' + Date.now();
+  const trip = { id, name, status:'active', createdAt: Date.now(), entryCount:0, total:0 };
+  state.trips.unshift(trip);
+  await saveTrips(state.trips);
+  openTrip(id);
+}
+
+async function renderTrip(){
+  const trip = state.trips.find(t=>t.id===state.currentTripId);
+  if (!trip){ goList(); return; }
+  app.innerHTML = `<div class="loading">Loading bills…</div>`;
+  state.entries = await loadEntries(trip.id);
+  const total = state.entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+
+  let html = `
+    <header>
+      <button class="back" onclick="goList()">← Trips</button>
+      <h1>${escapeHtml(trip.name)}</h1>
+    </header>
+    <main>
+      <div class="total-bar">
+        <div>
+          <div class="label">Total</div>
+          <div class="value mono">${money(total)}</div>
+        </div>
+        <div>
+          <div class="label">Bills</div>
+          <div class="value mono">${state.entries.length}</div>
+        </div>
+      </div>`;
+
+  if (state.entries.length === 0){
+    html += `
+      <div class="empty">
+        <div class="glyph">📷</div>
+        <p>No bills logged yet.</p>
+        <p>Tap below to add your first photo.</p>
+      </div>`;
+  } else {
+    state.entries.slice().reverse().forEach(e => {
+      html += `
+        <div class="entry">
+          <img src="${e.photo}" onclick="viewPhoto('${e.id}')">
+          <div class="info">
+            <div class="merchant">${escapeHtml(e.merchant || 'Untitled')}</div>
+            <div class="sub">${e.date || ''}</div>
+          </div>
+          <div class="amount mono">${money(e.amount)}</div>
+          <button class="del" onclick="deleteEntry('${e.id}')">✕</button>
+        </div>`;
+    });
+  }
+
+  html += `</main>`;
+  if (trip.status === 'active'){
+    html += `
+      <button class="fab" onclick="goAddEntry()">+ Add bill</button>
+      ${state.entries.length ? `<button class="fab secondary" style="bottom:82px" onclick="goReport()">Mark complete & send</button>` : ''}
+    `;
+  } else {
+    html += `<button class="fab secondary" onclick="goReport()">View report</button>`;
+  }
+  app.innerHTML = html;
+}
+
+function viewPhoto(entryId){
+  const e = state.entries.find(x=>x.id===entryId);
+  if (!e) return;
+  const w = window.open();
+  if (w) w.document.write(`<img src="${e.photo}" style="max-width:100%">`);
+}
+
+async function deleteEntry(entryId){
+  if (!confirm('Delete this bill?')) return;
+  state.entries = state.entries.filter(e=>e.id!==entryId);
+  await saveEntries(state.currentTripId, state.entries);
+  const trip = state.trips.find(t=>t.id===state.currentTripId);
+  trip.entryCount = state.entries.length;
+  trip.total = state.entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  await saveTrips(state.trips);
+  render();
+}
+
+function renderAddEntry(){
+  app.innerHTML = `
+    <header>
+      <button class="back" onclick="goBackToTrip()">← Cancel</button>
+      <h1>Add bill</h1>
+    </header>
+    <main>
+      <label>Photo</label>
+      <div class="photo-input" id="photoRow">
+        <button class="photo-btn" onclick="document.getElementById('cameraInput').click()">📷 Take photo</button>
+        <button class="photo-btn" onclick="document.getElementById('libraryInput').click()">🖼️ Choose photo</button>
+      </div>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
+      <input type="file" id="libraryInput" accept="image/*" style="display:none" onchange="handlePhoto(this)">
+
+      <label>Amount</label>
+      <input type="number" id="entryAmount" inputmode="decimal" placeholder="0.00" step="0.01">
+
+      <label>Date</label>
+      <input type="date" id="entryDate" value="${todayStr()}">
+
+      <label>Merchant / description</label>
+      <input type="text" id="entryMerchant" placeholder="e.g. Delta Airlines">
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="goBackToTrip()">Cancel</button>
+        <button class="btn btn-primary" id="saveBtn" onclick="saveEntry()">Save bill</button>
+      </div>
+    </main>`;
+}
+
+async function handlePhoto(input){
+  const file = input.files[0];
+  if (!file) return;
+  toast('Processing photo…');
+  try{
+    const dataUrl = await compressImage(file);
+    state.pendingPhoto = dataUrl;
+    $('#photoRow').innerHTML = `
+      <img class="thumb-preview" src="${dataUrl}">
+      <div style="font-size:13px; color:var(--ink-soft)">Photo attached ✓<br>
+      <a href="#" onclick="event.preventDefault(); goAddEntry()" style="color:var(--accent)">Retake</a></div>`;
+  }catch(e){
+    toast('Could not process photo');
+  }
+}
+
+async function saveEntry(){
+  const amount = $('#entryAmount').value;
+  const date = $('#entryDate').value;
+  const merchant = $('#entryMerchant').value.trim();
+  if (!state.pendingPhoto){ toast('Add a photo first'); return; }
+  if (!amount){ toast('Enter an amount'); return; }
+
+  const btn = $('#saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const entry = {
+    id: 'e_' + Date.now(),
+    photo: state.pendingPhoto,
+    amount, date, merchant
+  };
+  state.entries.push(entry);
+  await saveEntries(state.currentTripId, state.entries);
+
+  const trip = state.trips.find(t=>t.id===state.currentTripId);
+  trip.entryCount = state.entries.length;
+  trip.total = state.entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  await saveTrips(state.trips);
+
+  state.pendingPhoto = null;
+  toast('Bill saved');
+  goBackToTrip();
+}
+
+function renderReport(){
+  const trip = state.trips.find(t=>t.id===state.currentTripId);
+  const total = state.entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const rows = state.entries.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  let tableRows = rows.map(e=>`
+    <tr><td>${escapeHtml(e.date||'')}</td><td>${escapeHtml(e.merchant||'')}</td><td style="text-align:right">${money(e.amount)}</td></tr>
+  `).join('');
+
+  app.innerHTML = `
+    <header>
+      <button class="back" onclick="goBackToTrip()">← ${escapeHtml(trip.name)}</button>
+      <h1>Trip report</h1>
+    </header>
+    <main>
+      <div class="export-box">
+        <table class="export-table">
+          <tr><th>Date</th><th>Merchant</th><th style="text-align:right">Amount</th></tr>
+          ${tableRows}
+          <tr><td colspan="2" style="font-weight:700">Total</td><td style="text-align:right; font-weight:700">${money(total)}</td></tr>
+        </table>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%; margin-bottom:10px;" onclick="shareReport('${trip.id}')">
+        📤 Share to Mail (with photos)
+      </button>
+      <button class="btn btn-ghost" style="width:100%; margin-bottom:10px;" onclick="copyTable()">
+        Copy table as text
+      </button>
+      <button class="btn btn-ghost" style="width:100%; margin-bottom:22px;" onclick="mailtoFallback('${trip.id}')">
+        Open in Mail (table only, no photos)
+      </button>
+
+      ${trip.status === 'active' ? `
+        <button class="btn btn-primary" style="width:100%; background:var(--ink)" onclick="markComplete('${trip.id}')">
+          Mark trip as sent / complete
+        </button>` : `<p style="text-align:center; color:var(--ink-soft); font-size:13px;">This trip is marked complete.</p>`}
+    </main>`;
+}
+
+function buildTableText(){
+  const trip = state.trips.find(t=>t.id===state.currentTripId);
+  const total = state.entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const rows = state.entries.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let text = `Expense Report — ${trip.name}\n\n`;
+  text += `Date         Merchant                       Amount\n`;
+  text += `--------------------------------------------------\n`;
+  rows.forEach(e=>{
+    text += `${(e.date||'').padEnd(13)}${(e.merchant||'').slice(0,28).padEnd(31)}${money(e.amount)}\n`;
+  });
+  text += `--------------------------------------------------\n`;
+  text += `Total: ${money(total)}\n`;
+  return text;
+}
+
+async function copyTable(){
+  try{
+    await navigator.clipboard.writeText(buildTableText());
+    toast('Table copied — paste into your email');
+  }catch(e){
+    toast('Could not copy — select the table manually');
+  }
+}
+
+function mailtoFallback(tripId){
+  const trip = state.trips.find(t=>t.id===tripId);
+  const subject = encodeURIComponent(`Expense Report – ${trip.name}`);
+  const body = encodeURIComponent(buildTableText() + '\n\n(Photos not included in this link — use "Share to Mail" for photos, or attach manually.)');
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+
+async function shareReport(tripId){
+  const trip = state.trips.find(t=>t.id===tripId);
+  const text = buildTableText();
+
+  if (!navigator.share){
+    toast('Sharing not supported here — try "Open in Mail" instead');
+    return;
+  }
+
+  try{
+    const files = [];
+    for (const e of state.entries){
+      const res = await fetch(e.photo);
+      const blob = await res.blob();
+      const fname = `${(e.date||'bill')}_${(e.merchant||'receipt').replace(/[^a-z0-9]/gi,'_')}.jpg`;
+      files.push(new File([blob], fname, {type:'image/jpeg'}));
+    }
+    const shareData = { title: `Expense Report – ${trip.name}`, text, files };
+    if (navigator.canShare && !navigator.canShare(shareData)){
+      // fall back to text-only share if files aren't shareable
+      await navigator.share({ title: shareData.title, text });
+    } else {
+      await navigator.share(shareData);
+    }
+  }catch(e){
+    if (e.name !== 'AbortError') toast('Share cancelled or unavailable');
+  }
+}
+
+async function markComplete(tripId){
+  const trip = state.trips.find(t=>t.id===tripId);
+  trip.status = 'sent';
+  await saveTrips(state.trips);
+  toast('Trip marked complete');
+  render();
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- navigation ----------
+function goList(){ state.view='list'; state.currentTripId=null; render(); }
+function goNewTrip(){ state.view='newTrip'; render(); }
+function openTrip(id){ state.currentTripId=id; state.view='trip'; render(); }
+function goAddEntry(){ state.pendingPhoto=null; state.view='addEntry'; render(); }
+function goBackToTrip(){ state.view='trip'; render(); }
+function goReport(){ state.view='report'; render(); }
+
+// expose for inline handlers
+Object.assign(window, {
+  goList, goNewTrip, createTrip, openTrip, goAddEntry, goBackToTrip, goReport,
+  handlePhoto, saveEntry, viewPhoto, deleteEntry, shareReport, copyTable,
+  mailtoFallback, markComplete
+});
+
+// ---------- boot ----------
+(async function init(){
+  state.trips = await loadTrips();
+  state.view = 'list';
+  render();
+})();
+</script>
+</body>
+</html>
