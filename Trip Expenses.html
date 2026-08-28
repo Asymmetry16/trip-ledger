@@ -794,7 +794,8 @@ function renderBatchReview(){
             <input type="date" value="${item.date}"
               oninput="updateBatchField('${item.id}','date',this.value)"
               style="flex:1; padding:8px 10px; font-size:13.5px; border:1px solid var(--line); border-radius:8px;">
-          </div>`}
+          </div>
+          <a href="#" onclick="event.preventDefault(); showRawScan('${item.id}')" style="font-size:11px; color:var(--ink-soft); text-decoration:underline; display:inline-block; margin-top:6px;">view raw scan text</a>`}
         </div>
         <button class="del" onclick="removeBatchItem('${item.id}')">✕</button>
       </div>`;
@@ -818,6 +819,7 @@ async function handleBatchPhotos(input){
     photo: null,
     amount: '',
     merchant: '',
+    raw: '',
     date: todayStr(),
     status: 'pending'
   }));
@@ -828,15 +830,22 @@ async function handleBatchPhotos(input){
     try{
       const dataUrl = await compressImage(item.file);
       item.photo = dataUrl;
-      const { amount, merchant } = await scanReceipt(dataUrl);
+      const { amount, merchant, raw } = await scanReceipt(dataUrl);
       item.amount = amount;
       item.merchant = merchant;
+      item.raw = raw;
       item.status = 'done';
     }catch(e){
       item.status = 'error';
     }
     if (state.view === 'batchReview') render();
   }
+}
+
+function showRawScan(id){
+  const item = state.batchItems.find(i=>i.id===id);
+  if (!item) return;
+  alert(item.raw ? item.raw : '(no text detected)');
 }
 
 function updateBatchField(id, field, value){
@@ -1011,7 +1020,7 @@ Object.assign(window, {
   goList, goNewTrip, createTrip, openTrip, goAddEntry, goBackToTrip, goReport,
   handlePhoto, saveEntry, viewPhoto, deleteEntry, shareReport, copyTable,
   mailtoFallback, markComplete,
-  goBatchAdd, handleBatchPhotos, updateBatchField, removeBatchItem, cancelBatch, saveBatchAll
+  goBatchAdd, handleBatchPhotos, updateBatchField, removeBatchItem, cancelBatch, saveBatchAll, showRawScan
 });
 
 // ---------- boot ----------
