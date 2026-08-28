@@ -297,28 +297,69 @@ async function saveEntries(tripId, entries){
   }catch(e){ toast('Could not save — storage may be full (try smaller/fewer photos)'); }
 }
 
-// ---------- image compression ----------
-function compressImage(file){
+// ---------- image loading / compression / OCR prep ----------
+function loadImageFromFile(file){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
-      img.onload = () => {
-        const maxDim = 780;
-        let w = img.width, h = img.height;
-        if (w > h && w > maxDim){ h = h*(maxDim/w); w = maxDim; }
-        else if (h > maxDim){ w = w*(maxDim/h); h = maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.5));
-      };
+      img.onload = () => resolve(img);
       img.onerror = reject;
       img.src = e.target.result;
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function compressForStorage(img){
+  const maxDim = 780;
+  let w = img.width, h = img.height;
+  if (w > h && w > maxDim){ h = h*(maxDim/w); w = maxDim; }
+  else if (h > maxDim){ w = w*(maxDim/h); h = maxDim; }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.5);
+}
+
+// Samples the image to check if it's a dark-background screenshot (very common
+// for banking apps in dark mode) — Tesseract frequently misses large light-on-dark
+// text entirely, since it's tuned mostly for normal black-on-white documents.
+function isDarkImage(img){
+  try{
+    const w = 60, h = 60;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, w, h);
+    const data = cx.getImageData(0, 0, w, h).data;
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4){
+      sum += (data[i] + data[i+1] + data[i+2]) / 3;
+    }
+    return (sum / (data.length / 4)) < 100; // average brightness under ~100/255 = dark
+  }catch(e){
+    return false; // if canvas sampling fails for any reason, just skip inversion
+  }
+}
+
+// Prepares a separate, OCR-only version of the image: a bit higher resolution
+// than the stored thumbnail (helps small text), and inverted + contrast-boosted
+// if it's a dark screenshot, so Tesseract can actually see light-on-dark text.
+function prepareForOcr(img){
+  const maxDim = 1000;
+  let w = img.width, h = img.height;
+  if (w > h && w > maxDim){ h = h*(maxDim/w); w = maxDim; }
+  else if (h > maxDim){ w = w*(maxDim/h); h = maxDim; }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (isDarkImage(img)){
+    ctx.filter = 'invert(1) contrast(1.25)';
+  }
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 // ---------- OCR: read amount + merchant guesses off the photo ----------
@@ -686,7 +727,9 @@ async function handlePhoto(input){
   if (!file) return;
   toast('Processing photo…');
   try{
-    const dataUrl = await compressImage(file);
+    const img = await loadImageFromFile(file);
+    const dataUrl = compressForStorage(img);
+    const ocrUrl = prepareForOcr(img);
     state.pendingPhoto = dataUrl;
     $('#photoRow').innerHTML = `
       <img class="thumb-preview" src="${dataUrl}">
@@ -702,7 +745,7 @@ async function handlePhoto(input){
     scanNote.textContent = '🔍 Reading receipt…';
     $('#photoRow').after(scanNote);
 
-    const { amount, merchant } = await scanReceipt(dataUrl);
+    const { amount, merchant } = await scanReceipt(ocrUrl);
     const note = $('#scanNote');
     if (amount || merchant){
       if (amount) $('#entryAmount').value = amount;
@@ -828,9 +871,10 @@ async function handleBatchPhotos(input){
   // process sequentially — compress + OCR each one, re-rendering as each finishes
   for (const item of state.batchItems){
     try{
-      const dataUrl = await compressImage(item.file);
-      item.photo = dataUrl;
-      const { amount, merchant, raw } = await scanReceipt(dataUrl);
+      const img = await loadImageFromFile(item.file);
+      item.photo = compressForStorage(img);
+      const ocrUrl = prepareForOcr(img);
+      const { amount, merchant, raw } = await scanReceipt(ocrUrl);
       item.amount = amount;
       item.merchant = merchant;
       item.raw = raw;
