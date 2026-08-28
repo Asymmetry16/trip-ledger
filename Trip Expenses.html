@@ -373,15 +373,22 @@ function detectCurrencyOnLine(line){
 
 function guessAmount(text){
   const lines = text.split('\n').filter(l => !isStatusBarNoise(l));
-  // supports both 160.00 and European-style 160,00 as the decimal separator
-  const moneyRe = /\$?\s?(\d+(?:[.,]\d{3})*[.,]\d{2})\b/;
+  // strict: requires a 2-digit decimal (safe for scanning generic text without a currency anchor)
+  const strictMoneyRe = /\$?\s?(\d+(?:[.,]\d{3})*[.,]\d{2})\b/;
+  // loose: decimal optional — only used on lines where a currency word/symbol is
+  // already confirmed present, so whole-number amounts like "45 CHF" match too
+  const looseMoneyRe = /(\d+(?:[.,]\d{3})*(?:[.,]\d{2})?)/;
   const totalKeywords = /total|amount due|balance due|grand total|amount charged|montant/i;
+  const excludeKeywords = /commission|fee|frais|tip|pourboire|tax\b|taxe/i;
 
   function toNumber(raw){
-    // normalize: last separator before the final 2 digits is the decimal point,
-    // anything before that is a thousands separator
-    const cleaned = raw.replace(/[.,](?=\d{2}$)/, '§').replace(/[.,]/g, '').replace('§', '.');
-    return parseFloat(cleaned);
+    if (/[.,]\d{2}$/.test(raw)){
+      // has a decimal part: last separator before the final 2 digits is the decimal point
+      const cleaned = raw.replace(/[.,](?=\d{2}$)/, '§').replace(/[.,]/g, '').replace('§', '.');
+      return parseFloat(cleaned);
+    }
+    // whole number — just strip any thousands separators
+    return parseFloat(raw.replace(/[.,]/g, ''));
   }
 
   let eurAmount = null;      // a number explicitly labeled EUR/€ — what we actually want
@@ -389,15 +396,14 @@ function guessAmount(text){
   let foreignAmount = null;  // best foreign-currency figure found, kept only as a fallback flag
   let foreignCode = null;
 
-  const excludeKeywords = /commission|fee|frais|tip|pourboire|tax\b|taxe/i;
-
   for (let i = 0; i < lines.length; i++){
     const line = lines[i];
-    const m = line.match(moneyRe);
+    const currency = detectCurrencyOnLine(line);
+    const re = currency ? looseMoneyRe : strictMoneyRe;
+    const m = line.match(re);
     if (!m) continue;
     const val = toNumber(m[1]);
     if (isNaN(val)) continue;
-    const currency = detectCurrencyOnLine(line);
     // labels and their values often sit on separate OCR'd lines (e.g. "Montant de
     // commission" then "29.98 EUR" on the next line) — check the line above too
     const context = (lines[i-1] || '') + ' ' + line;
@@ -428,7 +434,7 @@ function guessAmount(text){
 
   // last resort: no currency-labeled figure found at all — grab the largest number on the page
   let best = null;
-  const allMatches = lines.join('\n').matchAll(new RegExp(moneyRe, 'g'));
+  const allMatches = lines.join('\n').matchAll(new RegExp(strictMoneyRe, 'g'));
   for (const m of allMatches){
     const val = toNumber(m[1]);
     if (!isNaN(val) && (best === null || val > best)) best = val;
@@ -440,9 +446,11 @@ function guessMerchant(text){
   const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
   const detailsLabel = /^d[ée]tails? de l.op[ée]ration$/i;
   const skipLabels = /^(d[ée]tails? de l.op[ée]ration|transaction details|receipt|statement)$/i;
+  // a line that's essentially JUST an amount + currency, e.g. "45 CHF", "190 CHF", "24.71 CHF"
+  const amountHeaderRe = /^\$?\s?\d+(?:[.,]\d{3})*(?:[.,]\d{2})?\s?(CHF|EUR|USD|GBP|JPY|\$|€|£|¥)$/i;
 
-  // Strongest signal for this statement format: the line right after "Détails de
-  // l'opération" is almost always the merchant name.
+  // Format A (Monaco/Amex-style statements): merchant is the line right after
+  // "Détails de l'opération".
   for (let i = 0; i < lines.length; i++){
     if (detailsLabel.test(lines[i])){
       for (let j = i + 1; j < lines.length; j++){
@@ -450,6 +458,19 @@ function guessMerchant(text){
         const letters = (lines[j].match(/[a-zA-Z]/g) || []).length;
         if (letters >= 2) return lines[j];
       }
+    }
+  }
+
+  // Format B (banking-app transaction screens): a big "45 CHF" style amount header
+  // sits at the top, with the merchant name directly on the next line.
+  for (let i = 0; i < lines.length; i++){
+    if (amountHeaderRe.test(lines[i])){
+      for (let j = i + 1; j < lines.length; j++){
+        if (isStatusBarNoise(lines[j])) continue;
+        const letters = (lines[j].match(/[a-zA-Z]/g) || []).length;
+        if (letters >= 2) return lines[j];
+      }
+      break; // only try the first amount header found
     }
   }
 
