@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -329,11 +330,11 @@ async function scanReceipt(dataUrl){
     const amountResult = guessAmount(text);
     let merchant = guessMerchant(text);
 
-    // If we only found a foreign-currency figure (no EUR amount anywhere), don't
-    // guess a euro number — flag it plainly in the merchant field so it's obvious
-    // at a glance that this one needs a manual EUR amount.
-    if (amountResult.foreignOnly && amountResult.foreignAmount){
-      const flag = `⚠️ ${amountResult.foreignAmount} ${amountResult.foreignCode} only — enter EUR manually`;
+    // If no EUR figure was found, the amount field still gets filled — with the
+    // foreign-currency number itself — but we flag the currency so it's obvious
+    // at a glance (and stays visible in the final report) that it isn't EUR.
+    if (amountResult.foreignOnly && amountResult.amount){
+      const flag = `⚠️ ${amountResult.foreignCode}, not EUR`;
       merchant = merchant ? `${merchant} — ${flag}` : flag;
     }
 
@@ -422,7 +423,9 @@ function guessAmount(text){
   }
 
   if (eurAmount !== null) return { amount: eurAmount.toFixed(2), foreignOnly: false };
-  if (foreignAmount !== null) return { amount: '', foreignOnly: true, foreignAmount: foreignAmount.toFixed(2), foreignCode };
+  // no EUR figure anywhere — still fill in a number (the foreign amount itself),
+  // just flag that it isn't EUR so it's obvious at a glance in the review/report
+  if (foreignAmount !== null) return { amount: foreignAmount.toFixed(2), foreignOnly: true, foreignCode };
 
   // last resort: no currency-labeled figure found at all — grab the largest number on the page
   let best = null;
@@ -1000,3 +1003,6 @@ Object.assign(window, {
 </script>
 </body>
 </html>
+```
+
+Same steps: GitHub → `Trip Expenses.html` → pencil → select all → paste this over it → scroll all the way down to confirm it ends with `</html>` → Commit changes → wait ~60-90 seconds → reload.
